@@ -52,11 +52,12 @@ class AppTheme {
       iconTheme: IconThemeData(color: AppColors.lightText),
     ),
     textTheme: _buildTextTheme(AppColors.lightText, AppColors.lightTextSecondary),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(   
       color: AppColors.lightSurface.withOpacity(0.8),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
+
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.lightPrimary,
@@ -92,11 +93,12 @@ class AppTheme {
       iconTheme: IconThemeData(color: AppColors.darkText),
     ),
     textTheme: _buildTextTheme(AppColors.darkText, AppColors.darkTextSecondary),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(   
       color: AppColors.darkSurface.withOpacity(0.8),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
+
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.darkPrimary,
