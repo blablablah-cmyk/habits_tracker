@@ -1,10 +1,10 @@
-// models/habit.dart
 import 'package:flutter/material.dart';
 
 enum HabitFrequency {
   daily,
   weekly,
   custom,
+  timed, // New: Time-based habits
 }
 
 enum HabitCategory {
@@ -61,6 +61,10 @@ class Habit {
   final HabitCategory category;
   final HabitFrequency frequency;
   final List<int> customDays; // For custom frequency (0=Monday, 6=Sunday)
+  final TimeOfDay? startTime; // New: Start time for timed habits
+  final TimeOfDay? endTime;   // New: End time for timed habits
+  final bool enableNotifications; // New: Enable/disable notifications for this habit
+  final List<int> notificationOffsets; // New: Minutes before start time to notify (e.g., [5, 15] for 5min and 15min before)
   final Color color;
   final IconData icon;
   final DateTime createdDate;
@@ -76,6 +80,10 @@ class Habit {
     required this.category,
     this.frequency = HabitFrequency.daily,
     this.customDays = const [],
+    this.startTime,
+    this.endTime,
+    this.enableNotifications = false,
+    this.notificationOffsets = const [15], // Default: 15 minutes before
     this.color = Colors.blue,
     this.icon = Icons.check_circle,
     required this.createdDate,
@@ -139,7 +147,33 @@ class Habit {
         return today == 0; // Monday
       case HabitFrequency.custom:
         return customDays.contains(today);
+      case HabitFrequency.timed:
+        return customDays.isEmpty ? true : customDays.contains(today); // If no custom days, daily
     }
+  }
+
+  // Check if habit is currently in its time window
+  bool get isInTimeWindow {
+    if (frequency != HabitFrequency.timed || startTime == null) return true;
+    
+    final now = TimeOfDay.now();
+    final nowMinutes = now.hour * 60 + now.minute;
+    final startMinutes = startTime!.hour * 60 + startTime!.minute;
+    final endMinutes = endTime != null ? (endTime!.hour * 60 + endTime!.minute) : (startMinutes + 60);
+    
+    return nowMinutes >= startMinutes && nowMinutes <= endMinutes;
+  }
+
+  // Get time range string for display
+  String? get timeRangeString {
+    if (frequency != HabitFrequency.timed || startTime == null) return null;
+    
+    final startStr = "${startTime!.hour.toString().padLeft(2, '0')}:${startTime!.minute.toString().padLeft(2, '0')}";
+    if (endTime != null) {
+      final endStr = "${endTime!.hour.toString().padLeft(2, '0')}:${endTime!.minute.toString().padLeft(2, '0')}";
+      return "$startStr - $endStr";
+    }
+    return startStr;
   }
 
   // Check if habit is completed today
@@ -159,6 +193,10 @@ class Habit {
     HabitCategory? category,
     HabitFrequency? frequency,
     List<int>? customDays,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+    bool? enableNotifications,
+    List<int>? notificationOffsets,
     Color? color,
     IconData? icon,
     int? targetValue,
@@ -173,6 +211,10 @@ class Habit {
       category: category ?? this.category,
       frequency: frequency ?? this.frequency,
       customDays: customDays ?? this.customDays,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      enableNotifications: enableNotifications ?? this.enableNotifications,
+      notificationOffsets: notificationOffsets ?? this.notificationOffsets,
       color: color ?? this.color,
       icon: icon ?? this.icon,
       createdDate: createdDate,
@@ -191,6 +233,10 @@ class Habit {
       'category': category.index,
       'frequency': frequency.index,
       'customDays': customDays,
+      'startTime': startTime != null ? {'hour': startTime!.hour, 'minute': startTime!.minute} : null,
+      'endTime': endTime != null ? {'hour': endTime!.hour, 'minute': endTime!.minute} : null,
+      'enableNotifications': enableNotifications,
+      'notificationOffsets': notificationOffsets,
       'color': color.value,
       'icon': icon.codePoint,
       'createdDate': createdDate.toIso8601String(),
@@ -209,6 +255,14 @@ class Habit {
       category: HabitCategory.values[json['category']],
       frequency: HabitFrequency.values[json['frequency']],
       customDays: List<int>.from(json['customDays'] ?? []),
+      startTime: json['startTime'] != null 
+          ? TimeOfDay(hour: json['startTime']['hour'], minute: json['startTime']['minute'])
+          : null,
+      endTime: json['endTime'] != null 
+          ? TimeOfDay(hour: json['endTime']['hour'], minute: json['endTime']['minute'])
+          : null,
+      enableNotifications: json['enableNotifications'] ?? false,
+      notificationOffsets: List<int>.from(json['notificationOffsets'] ?? [15]),
       color: Color(json['color']),
       icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
       createdDate: DateTime.parse(json['createdDate']),

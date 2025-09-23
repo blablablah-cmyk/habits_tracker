@@ -1,12 +1,14 @@
-// providers/habits_provider.dart
+// providers/habits_provider.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/habit.dart';
+import '../services/notification_service.dart';
 
 class HabitsProvider with ChangeNotifier {
   List<Habit> _habits = [];
   late SharedPreferences _prefs;
+  final NotificationService _notificationService = NotificationService();
 
   HabitsProvider() {
     _loadHabits();
@@ -22,40 +24,62 @@ class HabitsProvider with ChangeNotifier {
   
   List<Habit> get pendingTodayHabits => todayHabits.where((habit) => !habit.isCompletedToday).toList();
 
-  // Get habit by ID
+  // NEW: Get timed habits
+  List<Habit> get timedHabits => activeHabits.where((habit) => habit.frequency == HabitFrequency.timed).toList();
+  
+  List<Habit> get currentTimedHabits => timedHabits.where((habit) => habit.isInTimeWindow).toList();
+
+  // Get habit by ID - SAFER APPROACH
   Habit? getHabitById(String id) {
-    try {
-      return _habits.firstWhere((habit) => habit.id == id);
-    } catch (e) {
-      return null;
-    }
+    // Use where().firstOrNull instead of firstWhere to avoid StateError
+    final matchingHabits = _habits.where((habit) => habit.id == id);
+    return matchingHabits.isNotEmpty ? matchingHabits.first : null;
   }
 
-  // Add new habit
-  void addHabit(Habit habit) {
+  // Add new habit - ASYNC for notifications
+  Future<void> addHabit(Habit habit) async {
     _habits.add(habit);
-    _saveHabits();
+    await _saveHabits();
+    // Only schedule notifications if enabled
+    if (habit.enableNotifications) {
+      await _notificationService.scheduleHabitNotifications(habit);
+    }
     notifyListeners();
   }
 
-  // Update existing habit
-  void updateHabit(String id, Habit updatedHabit) {
+  // Update existing habit - ASYNC for notifications
+  Future<void> updateHabit(String id, Habit updatedHabit) async {
     final index = _habits.indexWhere((habit) => habit.id == id);
     if (index != -1) {
       _habits[index] = updatedHabit;
-      _saveHabits();
+      await _saveHabits();
+      // Reschedule notifications if enabled
+      if (updatedHabit.enableNotifications) {
+        await _notificationService.scheduleHabitNotifications(updatedHabit);
+      } else {
+        await _notificationService.cancelHabitNotifications(id);
+      }
       notifyListeners();
     }
   }
 
-  // Delete habit
-  void deleteHabit(String id) {
+  // Delete habit - ASYNC for notifications with error handling
+  Future<void> deleteHabit(String id) async {
+    try {
+      // Try to cancel notifications, but don't fail if it doesn't work
+      await _notificationService.cancelHabitNotifications(id);
+    } catch (e) {
+      print('Warning: Could not cancel notifications for habit $id: $e');
+      // Continue with deletion even if notification cancellation fails
+    }
+    
+    // Remove habit from list
     _habits.removeWhere((habit) => habit.id == id);
-    _saveHabits();
+    await _saveHabits();
     notifyListeners();
   }
 
-  // Toggle habit completion for today
+  // Toggle habit completion for today - SAME AS BEFORE
   void toggleHabitCompletion(String habitId, {bool? completed, String? notes, int? value}) {
     final habit = getHabitById(habitId);
     if (habit == null) return;
@@ -86,10 +110,21 @@ class HabitsProvider with ChangeNotifier {
     }
 
     final updatedHabit = habit.copyWith(progress: updatedProgressList);
-    updateHabit(habitId, updatedHabit);
+    // Use sync version to avoid breaking existing UI
+    _updateHabitSync(habitId, updatedHabit);
   }
 
-  // Add progress for a specific date
+  // Private sync version for toggleHabitCompletion
+  void _updateHabitSync(String id, Habit updatedHabit) {
+    final index = _habits.indexWhere((habit) => habit.id == id);
+    if (index != -1) {
+      _habits[index] = updatedHabit;
+      _saveHabits();
+      notifyListeners();
+    }
+  }
+
+  // Add progress for a specific date - SAME AS BEFORE
   void addHabitProgress(String habitId, DateTime date, bool completed, {String? notes, int? value}) {
     final habit = getHabitById(habitId);
     if (habit == null) return;
@@ -106,10 +141,10 @@ class HabitsProvider with ChangeNotifier {
     updatedProgressList.add(progress);
 
     final updatedHabit = habit.copyWith(progress: updatedProgressList);
-    updateHabit(habitId, updatedHabit);
+    _updateHabitSync(habitId, updatedHabit);
   }
 
-  // Get completion statistics
+  // Get completion statistics - SAME AS BEFORE
   Map<String, dynamic> getOverallStats() {
     if (activeHabits.isEmpty) {
       return {
@@ -138,30 +173,53 @@ class HabitsProvider with ChangeNotifier {
     };
   }
 
-  // Get habits by category
+  // Get habits by category - SAME AS BEFORE
   List<Habit> getHabitsByCategory(HabitCategory category) {
     return activeHabits.where((habit) => habit.category == category).toList();
   }
 
-  // Load habits from storage
+  // Load habits from storage - SAME AS BEFORE
   void _loadHabits() async {
     _prefs = await SharedPreferences.getInstance();
     final habitsJson = _prefs.getString('habits');
     
     if (habitsJson != null) {
-      final List<dynamic> habitsList = jsonDecode(habitsJson);
-      _habits = habitsList.map((json) => Habit.fromJson(json)).toList();
-      notifyListeners();
+      try {
+        final List<dynamic> habitsList = jsonDecode(habitsJson);
+        _habits = habitsList.map((json) => Habit.fromJson(json)).toList();
+        notifyListeners();
+      } catch (e) {
+        print('Error loading habits: $e');
+        // If loading fails, start fresh
+        _habits = [];
+        _addSampleHabits();
+      }
     } else {
       // Add some sample habits for development
       _addSampleHabits();
     }
   }
 
-  // Save habits to storage
-  void _saveHabits() async {
-    final habitsJson = jsonEncode(_habits.map((habit) => habit.toJson()).toList());
-    await _prefs.setString('habits', habitsJson);
+  // Save habits to storage - ASYNC version
+  Future<void> _saveHabits() async {
+    try {
+      final habitsJson = jsonEncode(_habits.map((habit) => habit.toJson()).toList());
+      await _prefs.setString('habits', habitsJson);
+    } catch (e) {
+      print('Error saving habits: $e');
+    }
+  }
+
+  // NEW: Notification-related methods
+  Future<bool> requestNotificationPermission() async {
+    return await _notificationService.requestPermission();
+  }
+
+  Future<void> sendTestNotification() async {
+    await _notificationService.sendImmediateNotification(
+      title: 'Test Notification',
+      body: 'Habit notifications are working!',
+    );
   }
 
   // Add sample habits for development/demo
@@ -215,23 +273,26 @@ class HabitsProvider with ChangeNotifier {
     ];
 
     for (final habit in sampleHabits) {
-      addHabit(habit);
+      _habits.add(habit);
     }
-  }
-
-  // Clear all habits (useful for testing)
-  void clearAllHabits() {
-    _habits.clear();
     _saveHabits();
     notifyListeners();
   }
 
-  // Export habits data
+  // Clear all habits - ASYNC version
+  Future<void> clearAllHabits() async {
+    await _notificationService.cancelAllNotifications();
+    _habits.clear();
+    await _saveHabits();
+    notifyListeners();
+  }
+
+  // Export habits data - SAME AS BEFORE
   String exportHabitsData() {
     return jsonEncode(_habits.map((habit) => habit.toJson()).toList());
   }
 
-  // Import habits data
+  // Import habits data - SAME AS BEFORE
   void importHabitsData(String jsonData) {
     try {
       final List<dynamic> habitsList = jsonDecode(jsonData);

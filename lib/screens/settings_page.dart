@@ -1,4 +1,3 @@
-// screens/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
@@ -339,8 +338,8 @@ class SettingsPage extends StatelessWidget {
                 ),
                 SizedBox(height: 8),
                 Text('• Auto: Switches between light (day) and dark (night) themes'),
-                Text('• Light: Always uses light theme with silver accents'),
-                Text('• Dark: Always uses dark theme with gold accents'),
+                Text('• Light: Always uses light theme'),
+                Text('• Dark: Always uses dark theme'),
               ],
             ),
           ),

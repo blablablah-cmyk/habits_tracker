@@ -8,8 +8,13 @@ import 'screens/add_habits_page.dart';
 import 'screens/habit_details_page.dart';
 import 'screens/settings_page.dart';
 import 'theme/app_theme.dart';
+import 'services/notification_service.dart';
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await Future.delayed(Duration(seconds: 1));
+  final notiService = NotificationService();
+  await notiService.initialize();
   runApp(MyApp());
 }
 

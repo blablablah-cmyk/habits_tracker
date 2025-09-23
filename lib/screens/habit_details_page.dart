@@ -1,4 +1,3 @@
-// screens/habit_details_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/habits_provider.dart';
@@ -447,6 +446,7 @@ class _HabitDetailsPageState extends State<HabitDetailsPage> {
   }
 
   Widget _buildStatisticsView(BuildContext context, Habit habit, bool isDark) {
+    // ignore: unused_local_variable
     final stats = HabitStats(habit);
     
     return Column(
