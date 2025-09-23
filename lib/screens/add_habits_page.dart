@@ -1,4 +1,3 @@
-// screens/add_habits_page.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/habits_provider.dart';
@@ -62,60 +61,50 @@ class _AddHabitsPageState extends State<AddHabitsPage> {
     final habitsProvider = context.read<HabitsProvider>();
     final habit = habitsProvider.getHabitById(widget.habitId!);
     
-    if (habit != null) {
-      // Load existing habit data
-      _nameController.text = habit.name;
-      _descriptionController.text = habit.description ?? '';
-      _targetValueController.text = habit.targetValue?.toString() ?? '';
-      _unitController.text = habit.unit ?? '';
-      _selectedCategory = habit.category;
-      _selectedFrequency = habit.frequency;
-      _selectedDays = List.from(habit.customDays);
-      _selectedColor = habit.color;
-      _selectedIcon = habit.icon;
-      _startTime = habit.startTime;
-      _endTime = habit.endTime;
-      _enableNotifications = habit.enableNotifications;
-      _notificationOffsets = List.from(habit.notificationOffsets);
+    if (habit == null) {
+      // Habit doesn't exist anymore (might have been deleted)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Habit no longer exists'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      });
+      return;
     }
-    // If habit is null, the build method will handle the navigation
+    
+    // Load existing habit data
+    _nameController.text = habit.name;
+    _descriptionController.text = habit.description ?? '';
+    _targetValueController.text = habit.targetValue?.toString() ?? '';
+    _unitController.text = habit.unit ?? '';
+    _selectedCategory = habit.category;
+    _selectedFrequency = habit.frequency;
+    _selectedDays = List.from(habit.customDays);
+    _selectedColor = habit.color;
+    _selectedIcon = habit.icon;
+    _startTime = habit.startTime;
+    _endTime = habit.endTime;
+    _enableNotifications = habit.enableNotifications;
+    _notificationOffsets = List.from(habit.notificationOffsets);
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = context.watch<ThemeProvider>().isDarkMode;
     
-    // Safety check: if editing and habit no longer exists, automatically go back
+    // Safety check: if editing and habit no longer exists, show error screen
     if (_isEditing) {
       final habitsProvider = context.watch<HabitsProvider>();
       final habit = habitsProvider.getHabitById(widget.habitId!);
       
       if (habit == null) {
-        // Habit doesn't exist - automatically navigate back
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text('Habit no longer exists'),
-                  ],
-                ),
-                backgroundColor: Colors.orange,
-                behavior: SnackBarBehavior.floating,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        });
-        
-        // Show loading indicator while navigating back
         return Scaffold(
           appBar: AppBar(
-            title: Text('Loading...'),
+            title: Text('Habit Not Found'),
             backgroundColor: Colors.transparent,
             elevation: 0,
           ),
@@ -123,9 +112,22 @@ class _AddHabitsPageState extends State<AddHabitsPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircularProgressIndicator(),
+                Icon(Icons.error_outline, size: 64, color: Colors.orange),
                 SizedBox(height: 16),
-                Text('Returning to previous screen...'),
+                Text(
+                  'Habit Not Found',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'This habit may have been deleted.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                ),
+                SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Go Back'),
+                ),
               ],
             ),
           ),
