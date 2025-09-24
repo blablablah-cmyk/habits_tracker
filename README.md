@@ -1,4 +1,5 @@
-# Habits Tracker App - my 2nd university project
+# Habits Tracker App 
+my 2nd years university project
 
 A modern and intuitive habit tracking application built with Flutter. Currently in version 1.0.0a1 some feature might be missing or not works as intended (import/export data and notifications services)
 
