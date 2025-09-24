@@ -29,6 +29,12 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
+            // Set default locale to en_US to prevent weird text issues
+            locale: Locale('en', 'US'),
+            supportedLocales: const [
+              Locale('en', 'US'),
+              Locale('es', 'ES'),
+            ],
             title: 'Habits Tracker',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
