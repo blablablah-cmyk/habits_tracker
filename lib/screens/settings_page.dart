@@ -163,19 +163,13 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.apps),
             title: Text('App Version'),
-            subtitle: Text('1.0.0'),
+            subtitle: Text('1.0.0a1'),
             contentPadding: EdgeInsets.zero,
           ),
           ListTile(
             leading: Icon(Icons.school),
             title: Text('University Project'),
             subtitle: Text('Built with Flutter for habit tracking'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          ListTile(
-            leading: Icon(Icons.palette),
-            title: Text('Design Style'),
-            subtitle: Text('Art Deco with Glassmorphism'),
             contentPadding: EdgeInsets.zero,
           ),
           Divider(),
