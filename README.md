@@ -27,7 +27,7 @@ A modern and intuitive habit tracking application built with Flutter. Currently 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/habits_tracker.git
+git clone https://github.com/blablablah-cmyk/habits_tracker.git
 ```
 
 2. Navigate to the project directory:
