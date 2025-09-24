@@ -78,7 +78,7 @@ class HabitsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Toggle habit completion for today - SAME AS BEFORE
+  // Toggle habit completion for today
   void toggleHabitCompletion(String habitId, {bool? completed, String? notes, int? value}) {
     final habit = getHabitById(habitId);
     if (habit == null) return;
@@ -172,12 +172,12 @@ class HabitsProvider with ChangeNotifier {
     };
   }
 
-  // Get habits by category - SAME AS BEFORE
+  // Get habits by category
   List<Habit> getHabitsByCategory(HabitCategory category) {
     return activeHabits.where((habit) => habit.category == category).toList();
   }
 
-  // Load habits from storage - SAME AS BEFORE
+  // Load habits from storage
   void _loadHabits() async {
     _prefs = await SharedPreferences.getInstance();
     final habitsJson = _prefs.getString('habits');
