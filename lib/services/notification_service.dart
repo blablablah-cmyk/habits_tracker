@@ -1,4 +1,3 @@
-// services/notification_service.dart - FIXED VERSION
 class NotificationService {
   static NotificationService? _instance;
   static NotificationService get instance {

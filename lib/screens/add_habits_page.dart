@@ -578,7 +578,9 @@ class _AddHabitsPageState extends State<AddHabitsPage> {
           child: ElevatedButton(
             onPressed: _saveHabit,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _selectedColor,
+              backgroundColor: Theme.of(context).brightness == Brightness.dark 
+              ? AppColors.darkPrimary 
+              : AppColors.lightPrimary,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),

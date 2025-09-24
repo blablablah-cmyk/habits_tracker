@@ -286,12 +286,12 @@ class HabitsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Export habits data - SAME AS BEFORE
+  // Export habits data
   String exportHabitsData() {
     return jsonEncode(_habits.map((habit) => habit.toJson()).toList());
   }
 
-  // Import habits data - SAME AS BEFORE
+  // Import habits data
   void importHabitsData(String jsonData) {
     try {
       final List<dynamic> habitsList = jsonDecode(jsonData);
