@@ -54,8 +54,7 @@ lib/
 ├── providers/      # State management
 ├── screens/        # UI screens
 ├── services/       # Business logic
-├── theme/          # App theming
-└── widgets/        # Reusable widgets
+└── theme/          # App theming
 ```
 
 ## Features in Detail
