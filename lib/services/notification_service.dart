@@ -1,3 +1,10 @@
+
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/material.dart';
+import '../models/habit.dart';
+
 class NotificationService {
   static NotificationService? _instance;
   static NotificationService get instance {
@@ -8,71 +15,294 @@ class NotificationService {
   factory NotificationService() => instance;
   NotificationService._internal();
 
+  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
-  // Initialize - safe, does nothing if notifications not available
+  /// Initialize the notification service
   Future<void> initialize() async {
     if (_initialized) return;
-    // TODO: Add flutter_local_notifications setup here when ready
-    _initialized = true;
-    print('NotificationService initialized (stub)');
+
+    try {
+      // Initialize timezone data
+      tz.initializeTimeZones();
+      
+      // Android initialization settings
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      
+      // iOS initialization settings
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      
+      // Combined initialization settings
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+
+      // Initialize the plugin
+      await _notifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTap,
+      );
+
+      _initialized = true;
+      print('✅ NotificationService initialized successfully');
+    } catch (e) {
+      print('⚠️ Error initializing NotificationService: $e');
+      _initialized = false;
+    }
   }
 
-  // Request permission - always returns true for now
+  /// Handle notification tap
+  void _onNotificationTap(NotificationResponse response) {
+    print('Notification tapped: ${response.payload}');
+    // TODO: Navigate to specific habit details if needed
+  }
+
+  /// Request notification permissions
   Future<bool> requestPermission() async {
     await _ensureInitialized();
-    print('Notification permission requested (stub)');
-    return true;
+    
+    try {
+      // Request Android 13+ notification permission
+      final android = _notifications.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      
+      if (android != null) {
+        final granted = await android.requestNotificationsPermission();
+        print(granted != null && granted 
+            ? '✅ Android notification permission granted' 
+            : '⚠️ Android notification permission denied');
+        return granted ?? false;
+      }
+
+      // Request iOS permissions
+      final ios = _notifications.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      
+      if (ios != null) {
+        final granted = await ios.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        print(granted != null && granted 
+            ? '✅ iOS notification permission granted' 
+            : '⚠️ iOS notification permission denied');
+        return granted ?? false;
+      }
+
+      return true; // Default to true for other platforms
+    } catch (e) {
+      print('⚠️ Error requesting notification permission: $e');
+      return false;
+    }
   }
 
-  // Schedule notifications - safe stub
-  Future<void> scheduleHabitNotifications(dynamic habit) async {
+  /// Schedule notifications for a habit
+  Future<void> scheduleHabitNotifications(Habit habit) async {
+    if (!habit.enableNotifications) {
+      print('ℹ️ Notifications disabled for habit: ${habit.name}');
+      return;
+    }
+
     await _ensureInitialized();
-    print('Would schedule notifications for: ${habit.name}');
-    // TODO: Implement actual scheduling
+
+    try {
+      // Cancel existing notifications for this habit first
+      await cancelHabitNotifications(habit.id);
+
+      if (habit.frequency == HabitFrequency.timed && habit.startTime != null) {
+        await _scheduleTimedHabitNotifications(habit);
+      } else {
+        await _scheduleRegularHabitNotification(habit);
+      }
+
+      print('✅ Scheduled notifications for habit: ${habit.name}');
+    } catch (e) {
+      print('⚠️ Error scheduling notifications for ${habit.name}: $e');
+    }
   }
 
-  // Cancel notifications - safe stub with proper error handling
+  /// Schedule notifications for timed habits
+  Future<void> _scheduleTimedHabitNotifications(Habit habit) async {
+    final now = DateTime.now();
+    
+    // Determine which days to schedule for
+    final daysToSchedule = habit.customDays.isEmpty 
+        ? List.generate(7, (index) => index) // All days if no custom days
+        : habit.customDays;
+
+    for (final dayOffset in daysToSchedule) {
+      for (final minutesBefore in habit.notificationOffsets) {
+        await _scheduleNotificationForDay(
+          habit: habit,
+          dayOfWeek: dayOffset,
+          minutesBefore: minutesBefore,
+        );
+      }
+    }
+  }
+
+  /// Schedule a single notification for a specific day
+  Future<void> _scheduleNotificationForDay({
+    required Habit habit,
+    required int dayOfWeek,
+    required int minutesBefore,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final currentWeekday = now.weekday - 1; // Convert to 0-6
+      
+      // Calculate target date
+      int daysUntilTarget = (dayOfWeek - currentWeekday) % 7;
+      if (daysUntilTarget == 0 && now.hour > habit.startTime!.hour) {
+        daysUntilTarget = 7; // Schedule for next week if time has passed
+      }
+      
+      final targetDate = now.add(Duration(days: daysUntilTarget));
+      final notificationTime = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        habit.startTime!.hour,
+        habit.startTime!.minute - minutesBefore,
+      );
+
+      // Skip if notification time is in the past
+      if (notificationTime.isBefore(now)) {
+        return;
+      }
+
+      final notificationId = _getNotificationId(habit.id, dayOfWeek, minutesBefore);
+      
+      await _notifications.zonedSchedule(
+        notificationId,
+        '⏰ ${habit.name}',
+        'Starting in $minutesBefore minutes',
+        tz.TZDateTime.from(notificationTime, tz.local),
+        _notificationDetails(habit),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+        payload: habit.id,
+      );
+
+      print('📅 Scheduled: ${habit.name} for ${_getDayName(dayOfWeek)} at ${_formatNotificationTime(notificationTime)}');
+    } catch (e) {
+      print('⚠️ Error scheduling notification for day $dayOfWeek: $e');
+    }
+  }
+
+  /// Schedule regular daily reminder (non-timed habits)
+  Future<void> _scheduleRegularHabitNotification(Habit habit) async {
+    try {
+      final now = DateTime.now();
+      var reminderTime = DateTime(now.year, now.month, now.day, 9, 0); // 9 AM
+      
+      if (reminderTime.isBefore(now)) {
+        reminderTime = reminderTime.add(Duration(days: 1));
+      }
+
+      final notificationId = _getNotificationId(habit.id, 0, 0);
+      
+      await _notifications.zonedSchedule(
+        notificationId,
+        '📝 ${habit.name}',
+        'Don\'t forget your daily habit!',
+        tz.TZDateTime.from(reminderTime, tz.local),
+        _notificationDetails(habit),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: habit.id,
+      );
+
+      print('📅 Scheduled daily reminder for ${habit.name} at 9:00 AM');
+    } catch (e) {
+      print('⚠️ Error scheduling daily reminder for ${habit.name}: $e');
+    }
+  }
+
+  /// Get notification details based on habit
+  NotificationDetails _notificationDetails(Habit habit) {
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        'habit_reminders',
+        'Habit Reminders',
+        channelDescription: 'Notifications for your habits',
+        importance: Importance.high,
+        priority: Priority.high,
+        showWhen: true,
+        color: habit.color,
+        icon: '@mipmap/ic_launcher',
+        styleInformation: BigTextStyleInformation(''),
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+  }
+
+  /// Cancel all notifications for a specific habit
   Future<void> cancelHabitNotifications(String habitId) async {
     try {
       await _ensureInitialized();
-      print('Would cancel notifications for habit: $habitId');
-      // TODO: Implement actual canceling
-      // For now, just simulate the cancellation without actual flutter_local_notifications
+      
+      // Cancel all possible notification IDs for this habit
       final baseId = habitId.hashCode;
-      for (int i = 0; i < 10; i++) {
-        // await _notifications.cancel(baseId + i); // This would be the real implementation
-        print('Would cancel notification ID: ${baseId + i}');
+      
+      // Cancel for all days and all offset combinations
+      for (int day = 0; day < 7; day++) {
+        for (int offset in [5, 10, 15, 30, 60]) {
+          final notificationId = _getNotificationId(habitId, day, offset);
+          await _notifications.cancel(notificationId);
+        }
       }
+      
+      // Cancel the regular daily notification
+      await _notifications.cancel(_getNotificationId(habitId, 0, 0));
+      
+      print('🗑️ Cancelled notifications for habit: $habitId');
     } catch (e) {
-      print('Error canceling notifications for $habitId: $e');
-      // Don't rethrow - we don't want to break habit deletion if notifications fail
+      print('⚠️ Error canceling notifications for $habitId: $e');
     }
   }
 
-  // Schedule all - safe stub
-  Future<void> scheduleAllHabitNotifications(List<dynamic> habits) async {
+  /// Schedule notifications for all habits
+  Future<void> scheduleAllHabitNotifications(List<Habit> habits) async {
     try {
       await _ensureInitialized();
-      print('Would schedule notifications for ${habits.length} habits');
-      // TODO: Implement batch scheduling
+      
+      for (final habit in habits) {
+        if (habit.enableNotifications && habit.isActive) {
+          await scheduleHabitNotifications(habit);
+        }
+      }
+      
+      print('✅ Scheduled notifications for ${habits.length} habits');
     } catch (e) {
-      print('Error scheduling notifications: $e');
+      print('⚠️ Error scheduling all notifications: $e');
     }
   }
 
-  // Cancel all - safe stub
+  /// Cancel all notifications
   Future<void> cancelAllNotifications() async {
     try {
       await _ensureInitialized();
-      print('Would cancel all notifications');
-      // TODO: Implement cancel all
+      await _notifications.cancelAll();
+      print('🗑️ Cancelled all notifications');
     } catch (e) {
-      print('Error canceling all notifications: $e');
+      print('⚠️ Error canceling all notifications: $e');
     }
   }
 
-  // Send test notification - safe stub
+  /// Send immediate test notification
   Future<void> sendImmediateNotification({
     required String title,
     required String body,
@@ -80,17 +310,67 @@ class NotificationService {
   }) async {
     try {
       await _ensureInitialized();
-      print('Test notification: $title - $body');
-      // TODO: Send actual notification
+      
+      await _notifications.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'test_notifications',
+            'Test Notifications',
+            channelDescription: 'Test notifications',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: payload,
+      );
+      
+      print('✅ Sent immediate notification: $title');
     } catch (e) {
-      print('Error sending test notification: $e');
+      print('⚠️ Error sending immediate notification: $e');
     }
   }
 
-  // Ensure the service is initialized before any operation
+  /// Get pending notification requests
+  Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    try {
+      await _ensureInitialized();
+      return await _notifications.pendingNotificationRequests();
+    } catch (e) {
+      print('⚠️ Error getting pending notifications: $e');
+      return [];
+    }
+  }
+
+  /// Generate unique notification ID
+  int _getNotificationId(String habitId, int dayOfWeek, int minutesBefore) {
+    // Create a unique ID based on habitId, day, and offset
+    final baseId = habitId.hashCode & 0x7FFFFFFF; // Ensure positive
+    return (baseId % 100000) + (dayOfWeek * 1000) + minutesBefore;
+  }
+
+  /// Ensure service is initialized
   Future<void> _ensureInitialized() async {
     if (!_initialized) {
       await initialize();
     }
+  }
+
+  /// Helper: Get day name
+  String _getDayName(int day) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days[day];
+  }
+
+  /// Helper: Format notification time
+  String _formatNotificationTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 }
