@@ -1,4 +1,5 @@
-# Habits Tracker App - my 2nd university project
+# Habits Tracker App 
+my 2nd years university project
 
 A modern and intuitive habit tracking application built with Flutter. Currently in version 1.0.0a1 some feature might be missing or not works as intended (import/export data and notifications services)
 
@@ -21,7 +22,7 @@ A modern and intuitive habit tracking application built with Flutter. Currently 
 - Flutter SDK (latest version)
 - Dart SDK
 - Android Studio or VS Code
-- iOS Simulator (for Mac) or Android Emulator
+- iOS Simulator (for Mac), Android Emulator or Visual Studio (for Windows)
 
 ### Installation
 
@@ -53,8 +54,7 @@ lib/
 ├── providers/      # State management
 ├── screens/        # UI screens
 ├── services/       # Business logic
-├── theme/          # App theming
-└── widgets/        # Reusable widgets
+└── theme/          # App theming
 ```
 
 ## Features in Detail
@@ -84,7 +84,3 @@ lib/
 3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
