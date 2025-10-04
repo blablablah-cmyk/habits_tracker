@@ -1,4 +1,3 @@
-// screens/settings_page.dart - FIXED IMPORT/EXPORT
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -229,12 +228,6 @@ class SettingsPage extends StatelessWidget {
             leading: Icon(Icons.school),
             title: Text('University Project'),
             subtitle: Text('Built with Flutter for habit tracking'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          ListTile(
-            leading: Icon(Icons.palette),
-            title: Text('Design Style'),
-            subtitle: Text('Art Deco with Glassmorphism'),
             contentPadding: EdgeInsets.zero,
           ),
           Divider(),
