@@ -1,21 +1,20 @@
-
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
+// services/notification_service.dart - FIXED INITIALIZATION
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import '../models/habit.dart';
 
 class NotificationService {
-  static NotificationService? _instance;
-  static NotificationService get instance {
-    _instance ??= NotificationService._internal();
-    return _instance!;
-  }
-  
-  factory NotificationService() => instance;
+  // Make this a singleton
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  // Create plugin instance
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = 
+    FlutterLocalNotificationsPlugin();
+  
   bool _initialized = false;
 
   /// Initialize the notification service
@@ -23,52 +22,50 @@ class NotificationService {
     if (_initialized) return;
 
     try {
-      // Initialize timezone data
+      // Initialize timezone
       tz.initializeTimeZones();
-      
-      // Android initialization settings
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      
-      // iOS initialization settings
-      const iosSettings = DarwinInitializationSettings(
+
+      // Initialize Android settings
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+
+      // Initialize iOS settings
+      final DarwinInitializationSettings initializationSettingsIOS =
+          DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
         requestSoundPermission: false,
       );
-      
-      // Combined initialization settings
-      const initSettings = InitializationSettings(
-        android: androidSettings,
-        iOS: iosSettings,
-      );
 
-      // Initialize the plugin
-      await _notifications.initialize(
-        initSettings,
-        onDidReceiveNotificationResponse: _onNotificationTap,
+      // Initialize settings
+      final InitializationSettings initializationSettings =
+          InitializationSettings(
+              android: initializationSettingsAndroid,
+              iOS: initializationSettingsIOS);
+
+      // Initialize plugin
+      await flutterLocalNotificationsPlugin.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: (details) {
+          debugPrint('Notification received: ${details.payload}');
+        },
       );
 
       _initialized = true;
-      print('✅ NotificationService initialized successfully');
+      debugPrint('Notifications initialized successfully');
     } catch (e) {
-      print('⚠️ Error initializing NotificationService: $e');
+      debugPrint('Error initializing notifications: $e');
       _initialized = false;
     }
   }
 
-  /// Handle notification tap
-  void _onNotificationTap(NotificationResponse response) {
-    print('Notification tapped: ${response.payload}');
-    // TODO: Navigate to specific habit details if needed
-  }
-
   /// Request notification permissions
   Future<bool> requestPermission() async {
-    await _ensureInitialized();
+    if (!await _ensureInitialized()) return false;
     
     try {
       // Request Android 13+ notification permission
-      final android = _notifications.resolvePlatformSpecificImplementation<
+      final android = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       
       if (android != null) {
@@ -80,7 +77,7 @@ class NotificationService {
       }
 
       // Request iOS permissions
-      final ios = _notifications.resolvePlatformSpecificImplementation<
+      final ios = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin>();
       
       if (ios != null) {
@@ -109,7 +106,10 @@ class NotificationService {
       return;
     }
 
-    await _ensureInitialized();
+    if (!await _ensureInitialized()) {
+      print('⚠️ Cannot schedule notifications - service not initialized');
+      return;
+    }
 
     try {
       // Cancel existing notifications for this habit first
@@ -153,6 +153,8 @@ class NotificationService {
     required int dayOfWeek,
     required int minutesBefore,
   }) async {
+    if (flutterLocalNotificationsPlugin == null) return;
+    
     try {
       final now = DateTime.now();
       final currentWeekday = now.weekday - 1; // Convert to 0-6
@@ -179,7 +181,7 @@ class NotificationService {
 
       final notificationId = _getNotificationId(habit.id, dayOfWeek, minutesBefore);
       
-      await _notifications.zonedSchedule(
+      await flutterLocalNotificationsPlugin.zonedSchedule(
         notificationId,
         '⏰ ${habit.name}',
         'Starting in $minutesBefore minutes',
@@ -199,6 +201,8 @@ class NotificationService {
 
   /// Schedule regular daily reminder (non-timed habits)
   Future<void> _scheduleRegularHabitNotification(Habit habit) async {
+    if (flutterLocalNotificationsPlugin == null) return;
+    
     try {
       final now = DateTime.now();
       var reminderTime = DateTime(now.year, now.month, now.day, 9, 0); // 9 AM
@@ -209,7 +213,7 @@ class NotificationService {
 
       final notificationId = _getNotificationId(habit.id, 0, 0);
       
-      await _notifications.zonedSchedule(
+      await flutterLocalNotificationsPlugin.zonedSchedule(
         notificationId,
         '📝 ${habit.name}',
         'Don\'t forget your daily habit!',
@@ -251,22 +255,19 @@ class NotificationService {
 
   /// Cancel all notifications for a specific habit
   Future<void> cancelHabitNotifications(String habitId) async {
+    if (!await _ensureInitialized()) return;
+    
     try {
-      await _ensureInitialized();
-      
-      // Cancel all possible notification IDs for this habit
-      final baseId = habitId.hashCode;
-      
       // Cancel for all days and all offset combinations
       for (int day = 0; day < 7; day++) {
         for (int offset in [5, 10, 15, 30, 60]) {
           final notificationId = _getNotificationId(habitId, day, offset);
-          await _notifications.cancel(notificationId);
+          await flutterLocalNotificationsPlugin.cancel(notificationId);
         }
       }
       
       // Cancel the regular daily notification
-      await _notifications.cancel(_getNotificationId(habitId, 0, 0));
+      await flutterLocalNotificationsPlugin.cancel(_getNotificationId(habitId, 0, 0));
       
       print('🗑️ Cancelled notifications for habit: $habitId');
     } catch (e) {
@@ -276,9 +277,12 @@ class NotificationService {
 
   /// Schedule notifications for all habits
   Future<void> scheduleAllHabitNotifications(List<Habit> habits) async {
+    if (!await _ensureInitialized()) {
+      print('⚠️ Cannot schedule notifications - service not initialized');
+      return;
+    }
+    
     try {
-      await _ensureInitialized();
-      
       for (final habit in habits) {
         if (habit.enableNotifications && habit.isActive) {
           await scheduleHabitNotifications(habit);
@@ -293,9 +297,10 @@ class NotificationService {
 
   /// Cancel all notifications
   Future<void> cancelAllNotifications() async {
+    if (!await _ensureInitialized()) return;
+    
     try {
-      await _ensureInitialized();
-      await _notifications.cancelAll();
+      await flutterLocalNotificationsPlugin.cancelAll();
       print('🗑️ Cancelled all notifications');
     } catch (e) {
       print('⚠️ Error canceling all notifications: $e');
@@ -308,10 +313,13 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    if (!await _ensureInitialized()) {
+      print('⚠️ Cannot send notification - service not initialized');
+      return;
+    }
+    
     try {
-      await _ensureInitialized();
-      
-      await _notifications.show(
+      await flutterLocalNotificationsPlugin.show(
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
         title,
         body,
@@ -340,9 +348,10 @@ class NotificationService {
 
   /// Get pending notification requests
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    if (!await _ensureInitialized()) return [];
+    
     try {
-      await _ensureInitialized();
-      return await _notifications.pendingNotificationRequests();
+      return await flutterLocalNotificationsPlugin.pendingNotificationRequests();
     } catch (e) {
       print('⚠️ Error getting pending notifications: $e');
       return [];
@@ -351,16 +360,16 @@ class NotificationService {
 
   /// Generate unique notification ID
   int _getNotificationId(String habitId, int dayOfWeek, int minutesBefore) {
-    // Create a unique ID based on habitId, day, and offset
     final baseId = habitId.hashCode & 0x7FFFFFFF; // Ensure positive
     return (baseId % 100000) + (dayOfWeek * 1000) + minutesBefore;
   }
 
-  /// Ensure service is initialized
-  Future<void> _ensureInitialized() async {
-    if (!_initialized) {
-      await initialize();
-    }
+  /// Ensure service is initialized (returns false if initialization failed)
+  Future<bool> _ensureInitialized() async {
+    if (_initialized) return true;
+    
+    await initialize();
+    return _initialized;
   }
 
   /// Helper: Get day name
@@ -372,5 +381,41 @@ class NotificationService {
   /// Helper: Format notification time
   String _formatNotificationTime(DateTime time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Check if notifications are available
+  bool get isAvailable => _initialized;
+
+  // Test notification method
+  Future<void> showTestNotification() async {
+    if (!_initialized) {
+      debugPrint('⚠️ Notifications not initialized');
+      return;
+    }
+
+    try {
+      await flutterLocalNotificationsPlugin.show(
+        0, // notification id
+        'Test Notification', 
+        'This is a test notification from Habits Tracker',
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'test_channel', // channel id
+            'Test Channel', // channel name
+            channelDescription: 'Channel for test notifications',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+      );
+      debugPrint('✅ Test notification sent');
+    } catch (e) {
+      debugPrint('⚠️ Error showing test notification: $e');
+    }
   }
 }

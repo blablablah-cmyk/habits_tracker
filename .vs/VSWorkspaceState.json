@@ -1,0 +1,10 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\lib",
+    "\\lib\\models",
+    "\\lib\\services"
+  ],
+  "SelectedNode": "\\lib\\services\\notification_service.dart",
+  "PreviewInSolutionExplorer": false
+}

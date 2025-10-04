@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/habits_provider.dart';
@@ -83,6 +84,7 @@ class _AddHabitsPageState extends State<AddHabitsPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = context.watch<ThemeProvider>().isDarkMode;
+    final isMobile = Platform.isAndroid || Platform.isIOS;
     
     // Safety check: if editing and habit no longer exists, automatically go back
     if (_isEditing) {
@@ -160,8 +162,11 @@ class _AddHabitsPageState extends State<AddHabitsPage> {
                 SizedBox(height: 20),
                 _buildTimeSchedule(isDark),
               ],
-              SizedBox(height: 20),
-              _buildNotifications(isDark),
+              // Only show notifications section on mobile
+              if (isMobile) ...[
+                SizedBox(height: 20),
+                _buildNotifications(isDark),
+              ],
               SizedBox(height: 20),
               _buildCustomization(isDark),
               SizedBox(height: 20),
@@ -615,9 +620,10 @@ class _AddHabitsPageState extends State<AddHabitsPage> {
 
     try {
       final habitsProvider = context.read<HabitsProvider>();
+      final isMobile = Platform.isAndroid || Platform.isIOS;
       
-      // Request notification permission if needed
-      if (_enableNotifications) {
+      // Only request notification permission on mobile
+      if (_enableNotifications && isMobile) {
         final granted = await habitsProvider.requestNotificationPermission();
         if (!granted) {
           _showError('Notification permission is required for reminders');
@@ -642,8 +648,9 @@ class _AddHabitsPageState extends State<AddHabitsPage> {
         progress: _isEditing ? habitsProvider.getHabitById(widget.habitId!)!.progress : [],
         startTime: _startTime,
         endTime: _endTime,
-        enableNotifications: _enableNotifications,
-        notificationOffsets: _notificationOffsets.isEmpty ? [15] : _notificationOffsets,
+        // Disable notifications on non-mobile platforms
+        enableNotifications: isMobile ? _enableNotifications : false,
+        notificationOffsets: isMobile ? (_notificationOffsets.isEmpty ? [15] : _notificationOffsets) : [],
       );
 
       if (_isEditing) {

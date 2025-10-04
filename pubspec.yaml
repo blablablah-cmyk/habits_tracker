@@ -1,9 +1,9 @@
 name: habits_tracker
-description: A habits tracking app with Art Deco design
+description: A habits tracking app 
 
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
